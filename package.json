@@ -1,0 +1,65 @@
+{
+  "name": "@datasert/formulate",
+  "version": "1.0.0",
+  "description": "TypeScript library for parsing and evaluating Salesforce formulas",
+  "keywords": [
+    "ast",
+    "evaluator",
+    "formula",
+    "parser",
+    "salesforce"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/datasert/formulate.git"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc",
+    "prepublishOnly": "npm run build",
+    "lint": "vp lint",
+    "dev": "tsc --watch",
+    "testui": "node node_modules/vite/bin/vite.js --config vite.dev.config.ts --open /tests/dev/testui.html",
+    "test": "vp test run",
+    "test:watch": "vp test",
+    "tsc": "tsc --noEmit",
+    "pub": "npm publish --registry https://registry.npmjs.org --access public"
+  },
+  "dependencies": {
+    "@chevrotain/types": "^11.0.3",
+    "chevrotain": "^11.0.3",
+    "decimal.js": "^10.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+    "vite-plugin-dts": "^4.0.0",
+    "vite-plus": "latest",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+  },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "npm@11.17.0"
+}

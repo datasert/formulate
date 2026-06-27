@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Formulate – Dev Tester</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+        font-size: 14px;
+        background: #ffffff;
+        color: #24292f;
+        height: 100dvh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* ── header ─────────────────────────────────────────────────────────── */
+      header {
+        padding: 10px 16px 8px;
+        background: #f6f8fa;
+        border-bottom: 1px solid #d0d7de;
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        flex-shrink: 0;
+      }
+      header h1 {
+        font-size: 13px;
+        font-weight: 600;
+        color: #57606a;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      /* ── input area ──────────────────────────────────────────────────────── */
+      .input-wrap {
+        padding: 12px 16px 10px;
+        background: #f6f8fa;
+        border-bottom: 1px solid #d0d7de;
+        flex-shrink: 0;
+      }
+      #formula {
+        width: 100%;
+        background: #ffffff;
+        color: #24292f;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        padding: 10px 12px;
+        font: inherit;
+        font-size: 15px;
+        resize: vertical;
+        min-height: 52px;
+        max-height: 180px;
+        outline: none;
+        transition: border-color 0.15s;
+        line-height: 1.5;
+      }
+      #formula:focus {
+        border-color: #0969da;
+        box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.12);
+      }
+      #formula.error {
+        border-color: #cf222e;
+      }
+      #status {
+        margin-top: 6px;
+        font-size: 12px;
+        min-height: 16px;
+        color: #cf222e;
+        white-space: pre;
+      }
+      #status.ok {
+        color: #1a7f37;
+      }
+
+      /* ── tab bar ─────────────────────────────────────────────────────────── */
+      .tab-bar {
+        display: flex;
+        background: #f6f8fa;
+        border-bottom: 1px solid #d0d7de;
+        flex-shrink: 0;
+      }
+      .tab-btn {
+        padding: 8px 22px;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        cursor: pointer;
+        color: #57606a;
+        transition: color 0.1s;
+      }
+      .tab-btn:hover {
+        color: #24292f;
+      }
+      .tab-btn.active {
+        color: #0969da;
+        border-bottom-color: #0969da;
+        background: #fff;
+      }
+
+      /* ── tab content ─────────────────────────────────────────────────────── */
+      .tab-content {
+        display: none;
+        flex: 1;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .tab-content.active {
+        display: flex;
+      }
+
+      /* ── shared panel styles ─────────────────────────────────────────────── */
+      .panel-title {
+        padding: 6px 14px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #57606a;
+        background: #f6f8fa;
+        border-bottom: 1px solid #d0d7de;
+        flex-shrink: 0;
+      }
+
+      pre {
+        white-space: pre-wrap;
+        word-break: normal;
+        overflow-wrap: anywhere;
+        line-height: 1.65;
+        font: inherit;
+      }
+
+      /* ── parse tab ───────────────────────────────────────────────────────── */
+      .formatted-strip {
+        flex-shrink: 0;
+        border-bottom: 1px solid #d0d7de;
+      }
+      .formatted-strip .strip-body {
+        padding: 12px 16px;
+        background: #ffffff;
+        max-height: 120px;
+        overflow: auto;
+      }
+      #formatted {
+        white-space: pre-wrap;
+        word-break: normal;
+        overflow-wrap: anywhere;
+        font: inherit;
+        font-size: 15px;
+        line-height: 1.7;
+        color: #24292f;
+      }
+      #formatted.empty {
+        color: #8c959f;
+        font-style: italic;
+      }
+
+      .panels {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        flex: 1;
+        overflow: hidden;
+      }
+      .panel {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border-right: 1px solid #d0d7de;
+      }
+      .panel:last-child {
+        border-right: none;
+      }
+      .panel-body {
+        flex: 1;
+        overflow: auto;
+        padding: 14px;
+        background: #ffffff;
+      }
+
+      /* JSON highlight */
+      .json-key {
+        color: #0550ae;
+      }
+      .json-str {
+        color: #0a3069;
+      }
+      .json-num {
+        color: #953800;
+      }
+      .json-bool {
+        color: #cf222e;
+      }
+      .json-null {
+        color: #8c959f;
+        font-style: italic;
+      }
+
+      /* ── evaluate tab ────────────────────────────────────────────────────── */
+      .eval-layout {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+      }
+
+      /* left: field table */
+      .fields-panel {
+        width: 580px;
+        min-width: 380px;
+        border-right: 1px solid #d0d7de;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      .fields-body {
+        flex: 1;
+        overflow: auto;
+        padding: 0;
+      }
+
+      #fields-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      #fields-table th,
+      #fields-table td {
+        padding: 7px 10px;
+        border-bottom: 1px solid #eaecef;
+        text-align: left;
+        vertical-align: middle;
+      }
+      #fields-table th {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #57606a;
+        background: #f6f8fa;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+      .field-name {
+        color: #0550ae;
+        font-weight: 500;
+      }
+
+      .type-select,
+      .value-input {
+        width: 100%;
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 4px;
+        padding: 4px 7px;
+        font: inherit;
+        font-size: 13px;
+        color: #24292f;
+        outline: none;
+      }
+      .type-select:focus,
+      .value-input:focus {
+        border-color: #0969da;
+        box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.12);
+      }
+      .value-input[type="checkbox"] {
+        width: auto;
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+      }
+
+      .no-fields-msg,
+      .eval-placeholder {
+        padding: 20px 14px;
+        color: #8c959f;
+        font-style: italic;
+        font-size: 13px;
+      }
+
+      /* right: steps panel */
+      .steps-panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .result-strip {
+        flex-shrink: 0;
+        padding: 10px 14px;
+        border-bottom: 1px solid #d0d7de;
+        background: #f6f8fa;
+        min-height: 46px;
+        display: flex;
+        align-items: center;
+      }
+
+      .result-box {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 14px;
+        border-radius: 6px;
+        font-size: 13px;
+        max-width: 100%;
+        overflow: hidden;
+      }
+      .result-box.ok {
+        background: #dafbe1;
+        border: 1px solid #56d364;
+      }
+      .result-box.err {
+        background: #ffebe9;
+        border: 1px solid #ff8182;
+      }
+
+      .result-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: #57606a;
+        flex-shrink: 0;
+      }
+      .result-value {
+        font-weight: 600;
+        color: #1a7f37;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .result-box.err .result-value {
+        color: #cf222e;
+      }
+
+      .step-tree-scroll {
+        flex: 1;
+        overflow: auto;
+        padding: 10px 14px;
+        background: #fff;
+      }
+
+      /* ── step tree ───────────────────────────────────────────────────────── */
+      .step-node {
+        margin: 1px 0;
+      }
+      .step-children {
+        margin-left: 14px;
+        border-left: 2px solid #e4e7ec;
+        padding-left: 10px;
+      }
+
+      details.step-expandable > summary {
+        list-style: none;
+        cursor: pointer;
+        user-select: none;
+      }
+      details.step-expandable > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.step-expandable > summary::before {
+        content: "▶ ";
+        font-size: 9px;
+        color: #8c959f;
+        display: inline;
+      }
+      details.step-expandable[open] > summary::before {
+        content: "▼ ";
+      }
+
+      .step-row {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 5px;
+        padding: 2px 4px;
+        border-radius: 3px;
+        line-height: 1.6;
+      }
+      .step-row:hover {
+        background: #f6f8fa;
+      }
+      .step-row.skipped {
+        opacity: 0.38;
+      }
+
+      .step-text {
+        color: #24292f;
+      }
+      .step-arrow {
+        color: #8c959f;
+        font-size: 12px;
+      }
+      .step-result {
+        color: #1a7f37;
+        font-weight: 600;
+      }
+      .step-result.err {
+        color: #cf222e;
+      }
+
+      .step-badge {
+        font-size: 10px;
+        padding: 1px 6px;
+        border-radius: 10px;
+        background: #eaeaea;
+        color: #888;
+        font-style: normal;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Formulate</h1>
+      <span style="color: #8c959f; font-size: 12px">live formula tester</span>
+    </header>
+
+    <div class="input-wrap">
+      <textarea
+        id="formula"
+        spellcheck="false"
+        placeholder='Enter a Salesforce formula, e.g.  IF(Amount > 1000, "High", "Low")'
+      ></textarea>
+      <div id="status"></div>
+    </div>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="parse">Parse</button>
+      <button class="tab-btn" data-tab="evaluate">Evaluate</button>
+    </div>
+
+    <!-- ── Parse tab ─────────────────────────────────────────────────────── -->
+    <div id="tab-parse" class="tab-content active">
+      <div class="formatted-strip">
+        <div class="panel-title">Formatted</div>
+        <div class="strip-body"><pre id="formatted" class="empty">—</pre></div>
+      </div>
+      <div class="panels">
+        <div class="panel">
+          <div class="panel-title">Parse Result</div>
+          <div class="panel-body"><pre id="parse-out"></pre></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">AST</div>
+          <div class="panel-body"><pre id="ast-out"></pre></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Evaluate tab ──────────────────────────────────────────────────── -->
+    <div id="tab-evaluate" class="tab-content">
+      <div class="eval-layout">
+        <!-- left: field value table -->
+        <div class="fields-panel">
+          <div class="panel-title">Field Values</div>
+          <div class="fields-body">
+            <table id="fields-table" style="display: none">
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th style="width: 100px">Type</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody id="fields-tbody"></tbody>
+            </table>
+            <div id="no-fields" class="no-fields-msg" style="display: none">
+              No fields referenced in this formula.
+            </div>
+            <div id="eval-placeholder" class="eval-placeholder">Enter a formula to see fields.</div>
+          </div>
+        </div>
+
+        <!-- right: result + step tree -->
+        <div class="steps-panel">
+          <div class="panel-title">Evaluation Steps</div>
+          <div class="result-strip" id="result-strip"></div>
+          <div class="step-tree-scroll" id="step-tree-scroll"></div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { parse, format, evaluate, formatLiteral } from "/src/index.ts";
+
+      // ── DOM refs ──────────────────────────────────────────────────────────
+      const formulaEl = document.getElementById("formula");
+      const statusEl = document.getElementById("status");
+      const formattedEl = document.getElementById("formatted");
+      const parseEl = document.getElementById("parse-out");
+      const astEl = document.getElementById("ast-out");
+
+      const fieldsTable = document.getElementById("fields-table");
+      const fieldsTbody = document.getElementById("fields-tbody");
+      const noFieldsEl = document.getElementById("no-fields");
+      const placeholderEl = document.getElementById("eval-placeholder");
+      const resultStrip = document.getElementById("result-strip");
+      const stepTreeScroll = document.getElementById("step-tree-scroll");
+
+      // ── state ─────────────────────────────────────────────────────────────
+      // Map<fieldName, { type: string, value: string }>
+      const fieldState = new Map();
+      let currentFields = []; // sorted field names from latest parse
+      let activeTab = "parse";
+
+      // ── tab switching ─────────────────────────────────────────────────────
+      document.querySelectorAll(".tab-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const tab = btn.dataset.tab;
+          document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+          document.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"));
+          btn.classList.add("active");
+          document.getElementById("tab-" + tab).classList.add("active");
+          activeTab = tab;
+          if (tab === "evaluate") runEvaluate();
+        });
+      });
+
+      // ── JSON colorizer ────────────────────────────────────────────────────
+      function colorizeJson(json) {
+        return json
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/("(?:\\.|[^"\\])*")\s*:/g, '<span class="json-key">$1</span>:')
+          .replace(/:\s*("(?:\\.|[^"\\])*")/g, ': <span class="json-str">$1</span>')
+          .replace(/:\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g, ': <span class="json-num">$1</span>')
+          .replace(/:\s*(true|false)/g, ': <span class="json-bool">$1</span>')
+          .replace(/:\s*(null)/g, ': <span class="json-null">$1</span>');
+      }
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      // ── run on formula change ─────────────────────────────────────────────
+      function runParse(value) {
+        const v = value.trim();
+
+        if (!v) {
+          formulaEl.classList.remove("error");
+          statusEl.textContent = "";
+          statusEl.className = "";
+          formattedEl.textContent = "—";
+          formattedEl.className = "empty";
+          parseEl.innerHTML = "";
+          astEl.innerHTML = "";
+          updateFieldTable([]);
+          clearEvaluate();
+          return;
+        }
+
+        const result = parse(v);
+
+        if (!result.success) {
+          formulaEl.classList.add("error");
+          statusEl.textContent = result.error;
+          statusEl.className = "";
+          formattedEl.textContent = "—";
+          formattedEl.className = "empty";
+          parseEl.innerHTML = colorizeJson(
+            JSON.stringify({ success: false, error: result.error }, null, 2),
+          );
+          astEl.innerHTML = "";
+          updateFieldTable([]);
+          clearEvaluate(result.error);
+          return;
+        }
+
+        formulaEl.classList.remove("error");
+
+        try {
+          formattedEl.textContent = format(v);
+          formattedEl.className = "";
+          statusEl.textContent = "OK";
+          statusEl.className = "ok";
+        } catch (_) {
+          formattedEl.textContent = "—";
+          formattedEl.className = "empty";
+        }
+
+        parseEl.innerHTML = colorizeJson(
+          JSON.stringify(
+            { success: true, fields: result.fields, functions: result.functions },
+            null,
+            2,
+          ),
+        );
+        astEl.innerHTML = colorizeJson(JSON.stringify(result.ast, null, 2));
+
+        updateFieldTable([...result.fields].sort());
+        if (activeTab === "evaluate") runEvaluate();
+      }
+
+      // ── field table management ────────────────────────────────────────────
+      function updateFieldTable(fields) {
+        currentFields = fields;
+
+        // Prune removed fields
+        for (const name of [...fieldState.keys()]) {
+          if (!fields.includes(name)) fieldState.delete(name);
+        }
+        // Add new fields
+        for (const name of fields) {
+          if (!fieldState.has(name)) fieldState.set(name, { type: "text", value: "" });
+        }
+
+        renderFieldTable();
+      }
+
+      function renderFieldTable() {
+        const fields = currentFields;
+
+        placeholderEl.style.display = "none";
+        fieldsTbody.innerHTML = "";
+
+        if (fields.length === 0) {
+          fieldsTable.style.display = "none";
+          noFieldsEl.style.display = "block";
+          return;
+        }
+
+        fieldsTable.style.display = "";
+        noFieldsEl.style.display = "none";
+
+        for (const name of fields) {
+          const state = fieldState.get(name);
+          const tr = document.createElement("tr");
+
+          // Field name
+          const tdName = document.createElement("td");
+          tdName.className = "field-name";
+          tdName.textContent = name;
+          tr.appendChild(tdName);
+
+          // Type selector
+          const tdType = document.createElement("td");
+          const typeSelect = document.createElement("select");
+          typeSelect.className = "type-select";
+          for (const t of ["text", "number", "checkbox", "date", "datetime", "time"]) {
+            const opt = document.createElement("option");
+            opt.value = t;
+            opt.textContent = t;
+            if (t === state.type) opt.selected = true;
+            typeSelect.appendChild(opt);
+          }
+          typeSelect.addEventListener("change", () => {
+            state.type = typeSelect.value;
+            state.value = "";
+            renderValueCell(tdValue, name, state);
+            runEvaluate();
+          });
+          tdType.appendChild(typeSelect);
+          tr.appendChild(tdType);
+
+          // Value cell
+          const tdValue = document.createElement("td");
+          renderValueCell(tdValue, name, state);
+          tr.appendChild(tdValue);
+
+          fieldsTbody.appendChild(tr);
+        }
+      }
+
+      function renderValueCell(td, name, state) {
+        td.innerHTML = "";
+        const input = buildValueInput(name, state);
+        td.appendChild(input);
+      }
+
+      function buildValueInput(name, state) {
+        const { type, value } = state;
+
+        if (type === "checkbox") {
+          const sel = document.createElement("select");
+          sel.className = "value-input";
+          for (const [v, label] of [
+            ["", "—"],
+            ["true", "TRUE"],
+            ["false", "FALSE"],
+          ]) {
+            const opt = document.createElement("option");
+            opt.value = v;
+            opt.textContent = label;
+            if (v === value) opt.selected = true;
+            sel.appendChild(opt);
+          }
+          sel.addEventListener("change", () => {
+            state.value = sel.value;
+            runEvaluate();
+          });
+          return sel;
+        }
+
+        const inp = document.createElement("input");
+        inp.className = "value-input";
+        inp.type =
+          type === "number"
+            ? "number"
+            : type === "date"
+              ? "date"
+              : type === "datetime"
+                ? "datetime-local"
+                : type === "time"
+                  ? "time"
+                  : "text";
+        if (type === "time") inp.step = "1"; // show seconds
+        if (value) inp.value = value;
+        inp.placeholder = type === "text" ? "(text value)" : "";
+        inp.addEventListener("input", () => {
+          state.value = inp.value;
+          runEvaluate();
+        });
+        return inp;
+      }
+
+      // ── evaluate ──────────────────────────────────────────────────────────
+      function clearEvaluate(errMsg) {
+        resultStrip.innerHTML = errMsg
+          ? `<div class="result-box err"><span class="result-label">error</span><span class="result-value">${escapeHtml(errMsg)}</span></div>`
+          : "";
+        stepTreeScroll.innerHTML = "";
+      }
+
+      function runEvaluate() {
+        const formula = formulaEl.value.trim();
+        if (!formula) {
+          clearEvaluate();
+          return;
+        }
+
+        const pr = parse(formula);
+        if (!pr.success) {
+          clearEvaluate(pr.error);
+          return;
+        }
+
+        // Build subs + schema
+        const substitutions = {};
+        const schema = {};
+
+        for (const [name, state] of fieldState) {
+          const { type, value } = state;
+          // Empty = null so the evaluator gets a value instead of "Unknown field"
+          if (value === "" || value == null) {
+            substitutions[name] = null;
+            continue;
+          }
+
+          if (type === "number") {
+            const n = parseFloat(value);
+            if (!isNaN(n)) substitutions[name] = n;
+          } else if (type === "checkbox") {
+            substitutions[name] = value === "true";
+          } else if (type === "date" || type === "datetime" || type === "time") {
+            let v = value;
+            // datetime-local gives "YYYY-MM-DDTHH:MM" — append :00 for seconds if needed
+            if (type === "datetime" && /T\d{2}:\d{2}$/.test(v)) v += ":00";
+            // time input gives "HH:MM" without seconds — append :00
+            if (type === "time" && /^\d{1,2}:\d{2}$/.test(v)) v += ":00";
+            substitutions[name] = v;
+            schema[name] = { type };
+          } else {
+            substitutions[name] = value;
+          }
+        }
+
+        const evalResult = evaluate(formula, substitutions, { schema, steps: true });
+
+        // Result box
+        const res = evalResult.result;
+        if (res.type === "error") {
+          resultStrip.innerHTML = `<div class="result-box err"><span class="result-label">${escapeHtml(res.errorType)}</span><span class="result-value">${escapeHtml(res.message)}</span></div>`;
+        } else {
+          const val = formatLiteral(res);
+          resultStrip.innerHTML = `<div class="result-box ok"><span class="result-label">${escapeHtml(res.dataType)}</span><span class="result-value">${escapeHtml(val)}</span></div>`;
+        }
+
+        // Step tree
+        stepTreeScroll.innerHTML = "";
+        if (evalResult.steps) {
+          renderStepNode(evalResult.steps, stepTreeScroll, 0);
+        }
+      }
+
+      // ── step tree renderer ────────────────────────────────────────────────
+      function renderStepNode(step, container, depth) {
+        const hasChildren = step.children && step.children.length > 0;
+        const wrapper = document.createElement("div");
+        wrapper.className = "step-node";
+
+        if (hasChildren) {
+          const details = document.createElement("details");
+          details.className = "step-expandable";
+          details.open = true;
+
+          const summary = document.createElement("summary");
+          appendStepRowContent(summary, step);
+          details.appendChild(summary);
+
+          const childDiv = document.createElement("div");
+          childDiv.className = "step-children";
+          for (const child of step.children) renderStepNode(child, childDiv, depth + 1);
+          details.appendChild(childDiv);
+
+          wrapper.appendChild(details);
+        } else {
+          const row = document.createElement("div");
+          appendStepRowContent(row, step);
+          wrapper.appendChild(row);
+        }
+
+        container.appendChild(wrapper);
+      }
+
+      function appendStepRowContent(el, step) {
+        el.className =
+          (el.className ? el.className + " " : "") + "step-row" + (step.skipped ? " skipped" : "");
+
+        const textSpan = document.createElement("span");
+        textSpan.className = "step-text";
+        textSpan.textContent = step.text;
+        el.appendChild(textSpan);
+
+        if (step.skipped) {
+          const badge = document.createElement("span");
+          badge.className = "step-badge";
+          badge.textContent = "skipped";
+          el.appendChild(badge);
+        } else if (step.result) {
+          const arrow = document.createElement("span");
+          arrow.className = "step-arrow";
+          arrow.textContent = "→";
+          el.appendChild(arrow);
+
+          const resultSpan = document.createElement("span");
+          if (step.result.type === "error") {
+            resultSpan.className = "step-result err";
+            resultSpan.textContent = step.result.message;
+          } else {
+            resultSpan.className = "step-result";
+            resultSpan.textContent = formatLiteral(step.result);
+          }
+          el.appendChild(resultSpan);
+        }
+      }
+
+      // ── wire up input ─────────────────────────────────────────────────────
+      let timer;
+      formulaEl.addEventListener("input", () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => runParse(formulaEl.value), 120);
+      });
+
+      runParse(formulaEl.value);
+    </script>
+  </body>
+</html>
