@@ -226,19 +226,18 @@ function geolocationFormat(lat: number, lon: number): string {
   return `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
 }
 
-export function formatLiteral(literal: LiteralNode): string {
+export function formatLiteral(literal: LiteralNode, decimalDigits = 2): string {
   if (literal.value == null && literal.dataType !== "null") return "";
 
   switch (literal.dataType) {
     case "null":
       return "NULL";
-    case "number":
-      return (literal.value as number).toString();
+    case "number": {
+      const n = literal.value as number;
+      return parseFloat(n.toFixed(decimalDigits)).toString();
+    }
     case "text":
-    case "picklist":
       return `"${literal.value as string}"`;
-    case "multipicklist":
-      return `[${(literal.value as string[]).map((v) => `"${v}"`).join(", ")}]`;
     case "checkbox":
       return String(literal.value).toUpperCase();
     case "date": {

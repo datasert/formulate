@@ -8,8 +8,6 @@ export type SfDataType =
   | "datetime"
   | "time"
   | "geolocation"
-  | "picklist"
-  | "multipicklist"
   | "null";
 
 export interface LiteralOptions {
@@ -101,18 +99,6 @@ export interface GeolocationLiteral extends LiteralNode {
   options: Record<string, never>;
 }
 
-export interface PicklistLiteral extends LiteralNode {
-  dataType: "picklist";
-  value: string;
-  options: { values: string[] };
-}
-
-export interface MultipicklistLiteral extends LiteralNode {
-  dataType: "multipicklist";
-  value: string[];
-  options: { values: string[] };
-}
-
 export interface NullLiteral extends LiteralNode {
   dataType: "null";
   value: null;
@@ -164,6 +150,23 @@ export interface EvaluateOptions {
    * evaluate('TODAY() - CloseDate', { CloseDate: '2024-01-15' }, { schema: { CloseDate: { type: 'date' } } })
    */
   schema?: FieldSchema;
+  /**
+   * The declared return type of the formula field. The final result is coerced
+   * to this type before being returned. Defaults to "text" when omitted, matching
+   * Salesforce's behaviour where untyped formulas are treated as text.
+   */
+  returnType?: SfDataType;
+  /**
+   * When true (default), null/blank number fields are treated as 0 in arithmetic
+   * operations, matching Salesforce's "Treat blank fields as zeroes" formula option.
+   * Set to false to propagate null through arithmetic instead.
+   */
+  blanksAsZero?: boolean;
+  /**
+   * Number of decimal places to display when the result is a number. Defaults to 2.
+   * Affects the `output` string in EvaluateResult; the raw `result.value` retains full precision.
+   */
+  decimalDigits?: number;
   /**
    * When true, the returned EvaluateResult includes a `steps` tree that traces
    * every AST node to the value it produced. Useful for debugging formulas.

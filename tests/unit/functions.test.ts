@@ -11,16 +11,18 @@ const date = (y: number, m: number, d: number) => buildDateLiteral(y, m, d);
 const datetime = (ms: number) => buildDatetimeLiteral(ms);
 const time = (ms: number) => buildTimeLiteral(ms);
 const geo = (lat: number, lon: number) => buildGeolocationLiteral(lat, lon);
+// Picklist and multi-select picklist are plain text in the evaluator.
+// Multi-select values are semicolon-delimited, matching Salesforce storage format.
 const picklist = (v: string) => ({
   type: "literal" as const,
   value: v,
-  dataType: "picklist" as const,
+  dataType: "text" as const,
   options: {},
 });
 const multipicklist = (vals: string[]) => ({
   type: "literal" as const,
-  value: vals,
-  dataType: "multipicklist" as const,
+  value: vals.join(";"),
+  dataType: "text" as const,
   options: {},
 });
 
@@ -1281,5 +1283,79 @@ describe("len / lower / upper / trim – null safety", () => {
   });
   it("TRIM returns empty string for null field", () => {
     expect(evaluate("TRIM(Field__c)", { Field__c: null }).result).toMatchObject({ value: "" });
+  });
+});
+
+// ─── EvaluateOptions.blanksAsZero ────────────────────────────────────────────
+
+describe("blanksAsZero", () => {
+  it("null number field treated as 0 by default", () => {
+    expect(evaluate("Amount + 100", { Amount: null }).output).toBe("100");
+  });
+  it("null number field treated as 0 when blanksAsZero=true", () => {
+    expect(evaluate("Amount * 3", { Amount: null }, { blanksAsZero: true }).output).toBe("0");
+  });
+  it("null propagates through arithmetic when blanksAsZero=false", () => {
+    const r = evaluate("Amount + 100", { Amount: null }, { blanksAsZero: false });
+    expect(r.result.type).toBe("error");
+  });
+  it("ISBLANK still sees null regardless of blanksAsZero", () => {
+    expect(evaluate("ISBLANK(Amount)", { Amount: null }, { blanksAsZero: true }).output).toBe(
+      "TRUE",
+    );
+  });
+  it("non-arithmetic functions are unaffected", () => {
+    expect(
+      evaluate("IF(ISBLANK(Amount), 'yes', 'no')", { Amount: null }, { blanksAsZero: true }).output,
+    ).toBe('"yes"');
+  });
+});
+
+// ─── EvaluateOptions.returnType ──────────────────────────────────────────────
+
+describe("returnType", () => {
+  it("coerces number result to text", () => {
+    const r = evaluate("42", {}, { returnType: "text" });
+    expect(r.result).toMatchObject({ dataType: "text", value: "42" });
+  });
+  it("coerces text result to number", () => {
+    const r = evaluate('"3.14"', {}, { returnType: "number" });
+    expect(r.result).toMatchObject({ dataType: "number", value: 3.14 });
+  });
+  it("coerces number to checkbox (non-zero = true)", () => {
+    const r = evaluate("1", {}, { returnType: "checkbox" });
+    expect(r.result).toMatchObject({ dataType: "checkbox", value: true });
+  });
+  it("coerces zero to checkbox false", () => {
+    const r = evaluate("0", {}, { returnType: "checkbox" });
+    expect(r.result).toMatchObject({ dataType: "checkbox", value: false });
+  });
+  it("leaves null unchanged regardless of returnType", () => {
+    const r = evaluate("NULL", {}, { returnType: "number" });
+    expect(r.result).toMatchObject({ dataType: "null" });
+  });
+  it("no coercion when returnType is omitted", () => {
+    const r = evaluate("Amount * 2", { Amount: 5 });
+    expect(r.result).toMatchObject({ dataType: "number", value: 10 });
+  });
+});
+
+// ─── EvaluateOptions.decimalDigits ───────────────────────────────────────────
+
+describe("decimalDigits", () => {
+  it("defaults to 2 decimal places", () => {
+    expect(evaluate("1 / 3", {}).output).toBe("0.33");
+  });
+  it("respects decimalDigits=4", () => {
+    expect(evaluate("1 / 3", {}, { decimalDigits: 4 }).output).toBe("0.3333");
+  });
+  it("respects decimalDigits=0 (whole number)", () => {
+    expect(evaluate("7 / 2", {}, { decimalDigits: 0 }).output).toBe("4");
+  });
+  it("strips trailing zeros", () => {
+    expect(evaluate("1.5 * 2", {}, { decimalDigits: 4 }).output).toBe("3");
+  });
+  it("does not affect non-number results", () => {
+    expect(evaluate('"hello"', {}, { decimalDigits: 4 }).output).toBe('"hello"');
   });
 });

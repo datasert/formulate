@@ -282,6 +282,25 @@ Use these to construct typed `LiteralNode` values for fields that have no plain 
 | Geolocation | `GEOLOCATION`, `DISTANCE`                                                                                                                                                                  |
 | Other       | `HYPERLINK`, `IMAGE`, `CASESAFEID`, `GETSESSIONID`, `ISNEW`, `ISCHANGED`, `PRIORVALUE`, `VLOOKUP`, `URLFOR`, `CURRENCYRATE`                                                                |
 
+## Other Salesforce formula libraries
+
+| Library | Language | Description |
+| ------- | -------- | ----------- |
+| [salesforce/formula-engine](https://github.com/salesforce/formula-engine) | Java | Official Salesforce extensible formula engine with Java, SQL, and JavaScript evaluation backends |
+| [leifg/formulon](https://github.com/leifg/formulon) | JavaScript | Parse and evaluate Salesforce formulas in Node.js |
+| [stomita/sformula](https://github.com/stomita/sformula) | JavaScript | Client-side Salesforce formula parser and evaluator |
+| [salto-io/salesforce-formula-parser](https://github.com/salto-io/salesforce-formula-parser) | TypeScript | Extracts field identifiers and semantic information from Salesforce formulas |
+| [pgonzaleznetwork/forcemula](https://github.com/pgonzaleznetwork/forcemula) | JavaScript | Zero-dependency parser that extracts fields, operators, and functions from formula text |
+| [tzmfreedom/salesforce-formula-parser](https://github.com/tzmfreedom/salesforce-formula-parser) | JavaScript | Parses Salesforce formulas into an AST |
+| [octoberswimmer/sformula](https://github.com/octoberswimmer/sformula) | Go | Formula parser and formatter built on an ANTLR grammar |
+| [tzmfreedom/go-salesforce-formula-parser](https://github.com/tzmfreedom/go-salesforce-formula-parser) | Go | Parses Salesforce formulas into an AST |
+| [cesarParra/expression](https://github.com/cesarParra/expression) | Apex | Evaluates formula-syntax expressions natively inside Salesforce via Apex |
+| [fivetran/dbt_salesforce_formula_utils](https://github.com/fivetran/dbt_salesforce_formula_utils) | SQL/dbt | Translates Salesforce formula fields synced via Fivetran into warehouse SQL |
+
+## Credits
+
+Integration test scenarios were adapted from the [Formulon](https://github.com/leifg/formulon) project by Leif Gensert, which provides an excellent set of real-world Salesforce formula examples across account management, commissions, financial calculations, opportunity management, and more.
+
 ## License
 
 MIT

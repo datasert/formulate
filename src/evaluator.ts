@@ -10,6 +10,7 @@ import type {
   FieldSubstitutions,
   IdentifierNode,
   LiteralNode,
+  SfDataType,
 } from "./types.js";
 import { FormulaError } from "./errors.js";
 import { FUNCTIONS } from "./functions.js";
@@ -23,9 +24,24 @@ import {
 
 type NormalizedSubs = Record<string, LiteralNode>;
 
+interface EvalCtx {
+  subs: NormalizedSubs;
+  blanksAsZero: boolean;
+}
+
+// Functions where a null operand should be treated as 0 when blanksAsZero is enabled.
+const NUMERIC_OPS = new Set(["add", "subtract", "multiply", "divide", "exponentiate"]);
+
+function nullToZero(node: LiteralNode | ErrorNode): LiteralNode | ErrorNode {
+  return node.type === "literal" && (node as LiteralNode).dataType === "null"
+    ? buildLiteralFromJs(0)
+    : node;
+}
+
 // ─── AST traversal ────────────────────────────────────────────────────────────
 
-function traverseNode(node: AstNode, substitutions: NormalizedSubs): LiteralNode | ErrorNode {
+function traverseNode(node: AstNode, ctx: EvalCtx): LiteralNode | ErrorNode {
+  const { subs: substitutions, blanksAsZero } = ctx;
   switch (node.type) {
     case "literal":
       return node;
@@ -45,7 +61,7 @@ function traverseNode(node: AstNode, substitutions: NormalizedSubs): LiteralNode
     }
 
     case "comment":
-      return traverseNode((node as CommentNode).body, substitutions);
+      return traverseNode((node as CommentNode).body, ctx);
 
     case "callExpression": {
       const call = node as CallExpressionNode;
@@ -62,17 +78,17 @@ function traverseNode(node: AstNode, substitutions: NormalizedSubs): LiteralNode
 
       // IF, AND, OR need short-circuit evaluation — only evaluate branches that are reached.
       if (call.id === "if") {
-        const condition = traverseNode(call.arguments[0], substitutions);
+        const condition = traverseNode(call.arguments[0], ctx);
         if (condition.type === "error") return condition as ErrorNode;
         const branch = (condition as LiteralNode).value ? call.arguments[1] : call.arguments[2];
         return branch
-          ? traverseNode(branch, substitutions)
+          ? traverseNode(branch, ctx)
           : buildErrorLiteral("ArgumentError", "IF() requires 3 arguments");
       }
 
       if (call.id === "and") {
         for (const arg of call.arguments) {
-          const v = traverseNode(arg, substitutions);
+          const v = traverseNode(arg, ctx);
           if (v.type === "error") return v as ErrorNode;
           if (!(v as LiteralNode).value) return v as LiteralNode;
         }
@@ -86,7 +102,7 @@ function traverseNode(node: AstNode, substitutions: NormalizedSubs): LiteralNode
 
       if (call.id === "or") {
         for (const arg of call.arguments) {
-          const v = traverseNode(arg, substitutions);
+          const v = traverseNode(arg, ctx);
           if (v.type === "error") return v as ErrorNode;
           if ((v as LiteralNode).value) return v as LiteralNode;
         }
@@ -98,7 +114,10 @@ function traverseNode(node: AstNode, substitutions: NormalizedSubs): LiteralNode
         };
       }
 
-      const evaluatedArgs = call.arguments.map((arg) => traverseNode(arg, substitutions));
+      let evaluatedArgs = call.arguments.map((arg) => traverseNode(arg, ctx));
+      if (blanksAsZero && NUMERIC_OPS.has(call.id)) {
+        evaluatedArgs = evaluatedArgs.map(nullToZero);
+      }
       const firstError = evaluatedArgs.find((a) => a.type === "error");
       if (firstError) return firstError as ErrorNode;
 
@@ -128,11 +147,12 @@ function skipped(node: AstNode): EvalStep {
   return { text: flatFormat(node), skipped: true, children: [] };
 }
 
-function traverseWithSteps(node: AstNode, substitutions: NormalizedSubs): StepResult {
+function traverseWithSteps(node: AstNode, ctx: EvalCtx): StepResult {
+  const { subs: substitutions, blanksAsZero } = ctx;
   // Comments are transparent — show the body's step with the comment's text prepended
   if (node.type === "comment") {
     const c = node as CommentNode;
-    const inner = traverseWithSteps(c.body, substitutions);
+    const inner = traverseWithSteps(c.body, ctx);
     return { result: inner.result, step: { ...inner.step, text: flatFormat(node) } };
   }
 
@@ -171,7 +191,7 @@ function traverseWithSteps(node: AstNode, substitutions: NormalizedSubs): StepRe
 
   // IF — short-circuit: only evaluate the taken branch
   if (call.id === "if") {
-    const cond = traverseWithSteps(call.arguments[0], substitutions);
+    const cond = traverseWithSteps(call.arguments[0], ctx);
     const children: EvalStep[] = [cond.step];
     if (cond.result.type === "error") {
       call.arguments.slice(1).forEach((a) => children.push(skipped(a)));
@@ -184,7 +204,7 @@ function traverseWithSteps(node: AstNode, substitutions: NormalizedSubs): StepRe
       const result = buildErrorLiteral("ArgumentError", "IF() requires 3 arguments");
       return { result, step: { text, result, children } };
     }
-    const taken = traverseWithSteps(takenArg, substitutions);
+    const taken = traverseWithSteps(takenArg, ctx);
     children.push(taken.step);
     if (call.arguments[otherIdx]) children.push(skipped(call.arguments[otherIdx]));
     return { result: taken.result, step: { text, result: taken.result, children } };
@@ -205,7 +225,7 @@ function traverseWithSteps(node: AstNode, substitutions: NormalizedSubs): StepRe
         children.push(skipped(call.arguments[i]));
         continue;
       }
-      const s = traverseWithSteps(call.arguments[i], substitutions);
+      const s = traverseWithSteps(call.arguments[i], ctx);
       children.push(s.step);
       lastResult = s.result;
       if (s.result.type === "error" || !(s.result as LiteralNode).value) shortCircuitAt = i;
@@ -228,7 +248,7 @@ function traverseWithSteps(node: AstNode, substitutions: NormalizedSubs): StepRe
         children.push(skipped(call.arguments[i]));
         continue;
       }
-      const s = traverseWithSteps(call.arguments[i], substitutions);
+      const s = traverseWithSteps(call.arguments[i], ctx);
       children.push(s.step);
       lastResult = s.result;
       if (s.result.type === "error" || (s.result as LiteralNode).value) shortCircuitAt = i;
@@ -237,7 +257,10 @@ function traverseWithSteps(node: AstNode, substitutions: NormalizedSubs): StepRe
   }
 
   // All other calls — evaluate all arguments
-  const argResults = call.arguments.map((a) => traverseWithSteps(a, substitutions));
+  let argResults = call.arguments.map((a) => traverseWithSteps(a, ctx));
+  if (blanksAsZero && NUMERIC_OPS.has(call.id)) {
+    argResults = argResults.map((r) => ({ ...r, result: nullToZero(r.result) }));
+  }
   const children: EvalStep[] = argResults.map((r) => r.step);
   const firstError = argResults.find((r) => r.result.type === "error");
   if (firstError) {
@@ -314,6 +337,32 @@ function addToNormalized(
   }
 }
 
+function coerceToReturnType(node: LiteralNode, returnType: SfDataType): LiteralNode {
+  if (node.dataType === returnType || node.dataType === "null") return node;
+
+  const raw = node.value;
+
+  switch (returnType) {
+    case "text": {
+      const s = formatLiteral(node).replace(/^"|"$/g, ""); // strip quotes added by formatLiteral
+      return buildLiteralFromJs(s);
+    }
+    case "number": {
+      const n = typeof raw === "number" ? raw : parseFloat(String(raw));
+      return isNaN(n) ? buildLiteralFromJs(null) : buildLiteralFromJs(n);
+    }
+    case "checkbox": {
+      let b: boolean;
+      if (typeof raw === "boolean") b = raw;
+      else if (typeof raw === "number") b = raw !== 0;
+      else b = String(raw).toLowerCase() === "true";
+      return buildLiteralFromJs(b);
+    }
+    default:
+      return node;
+  }
+}
+
 /**
  * Evaluate an already-parsed AST against a set of field substitutions.
  */
@@ -327,19 +376,27 @@ export function evaluateAst(
     addToNormalized(normalized, k, v, options.schema);
   }
 
+  const ctx: EvalCtx = { subs: normalized, blanksAsZero: options.blanksAsZero ?? true };
+
   let result: LiteralNode | ErrorNode;
   let steps: EvalStep | undefined;
 
   if (options.steps) {
-    const sr = traverseWithSteps(ast, normalized);
+    const sr = traverseWithSteps(ast, ctx);
     result = sr.result;
     steps = sr.step;
   } else {
-    result = traverseNode(ast, normalized);
+    result = traverseNode(ast, ctx);
+  }
+
+  if (result.type !== "error" && options.returnType) {
+    result = coerceToReturnType(result as LiteralNode, options.returnType);
   }
 
   const output =
-    result.type === "error" ? (result as ErrorNode).message : formatLiteral(result as LiteralNode);
+    result.type === "error"
+      ? (result as ErrorNode).message
+      : formatLiteral(result as LiteralNode, options.decimalDigits ?? 2);
 
   return steps !== undefined ? { result, output, steps } : { result, output };
 }

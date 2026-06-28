@@ -196,10 +196,9 @@ export function ispickval(picklistField: LiteralNode, textLiteral: LiteralNode):
 }
 
 export function includes(multiselectPicklist: LiteralNode, textLiteral: LiteralNode): LiteralNode {
+  const s = multiselectPicklist.dataType === "null" ? "" : (multiselectPicklist.value as string);
   const needle = (textLiteral.value as string).toLowerCase();
-  return buildLiteralFromJs(
-    (multiselectPicklist.value as string[]).some((v) => v.toLowerCase() === needle),
-  );
+  return buildLiteralFromJs(s.split(";").some((v) => v.trim().toLowerCase() === needle));
 }
 
 export function abs(number: LiteralNode): LiteralNode {
@@ -435,6 +434,7 @@ export function rpad(
 
 export function text(value: LiteralNode): LiteralNode {
   if (value.dataType === "null") return buildLiteralFromJs("");
+  if (value.dataType === "text") return value;
   if (value.dataType === "datetime") {
     return buildLiteralFromJs(
       formatLiteral(value)
@@ -442,7 +442,6 @@ export function text(value: LiteralNode): LiteralNode {
         .replace(/\.\d{3}/, ""),
     );
   }
-  if (value.dataType === "picklist") return buildLiteralFromJs(value.value as string);
   return buildLiteralFromJs(formatLiteral(value));
 }
 
