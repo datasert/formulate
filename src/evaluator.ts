@@ -32,10 +32,17 @@ interface EvalCtx {
 // Functions where a null operand should be treated as 0 when blanksAsZero is enabled.
 const NUMERIC_OPS = new Set(["add", "subtract", "multiply", "divide", "exponentiate"]);
 
-function nullToZero(node: LiteralNode | ErrorNode): LiteralNode | ErrorNode {
-  return node.type === "literal" && (node as LiteralNode).dataType === "null"
-    ? buildLiteralFromJs(0)
-    : node;
+const TEMPORAL_TYPES = new Set(["date", "datetime", "time"]);
+
+function applyBlanksAsZero(args: Array<LiteralNode | ErrorNode>): Array<LiteralNode | ErrorNode> {
+  return args.map((arg, i) => {
+    if (arg.type !== "literal" || (arg as LiteralNode).dataType !== "null") return arg;
+    const others = args.filter((_, j) => j !== i);
+    const hasTemporalSibling = others.some(
+      (a) => a.type === "literal" && TEMPORAL_TYPES.has((a as LiteralNode).dataType),
+    );
+    return hasTemporalSibling ? arg : buildLiteralFromJs(0);
+  });
 }
 
 // ─── AST traversal ────────────────────────────────────────────────────────────
@@ -116,7 +123,7 @@ function traverseNode(node: AstNode, ctx: EvalCtx): LiteralNode | ErrorNode {
 
       let evaluatedArgs = call.arguments.map((arg) => traverseNode(arg, ctx));
       if (blanksAsZero && NUMERIC_OPS.has(call.id)) {
-        evaluatedArgs = evaluatedArgs.map(nullToZero);
+        evaluatedArgs = applyBlanksAsZero(evaluatedArgs);
       }
       const firstError = evaluatedArgs.find((a) => a.type === "error");
       if (firstError) return firstError as ErrorNode;
@@ -259,7 +266,8 @@ function traverseWithSteps(node: AstNode, ctx: EvalCtx): StepResult {
   // All other calls — evaluate all arguments
   let argResults = call.arguments.map((a) => traverseWithSteps(a, ctx));
   if (blanksAsZero && NUMERIC_OPS.has(call.id)) {
-    argResults = argResults.map((r) => ({ ...r, result: nullToZero(r.result) }));
+    const coerced = applyBlanksAsZero(argResults.map((r) => r.result));
+    argResults = argResults.map((r, i) => ({ ...r, result: coerced[i] }));
   }
   const children: EvalStep[] = argResults.map((r) => r.step);
   const firstError = argResults.find((r) => r.result.type === "error");
