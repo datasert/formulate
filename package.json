@@ -1,6 +1,6 @@
 {
   "name": "@datasert/formulate",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "TypeScript library for parsing and evaluating Salesforce formulas",
   "keywords": [
     "ast",
@@ -25,6 +25,10 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
   },
   "scripts": {
     "build": "rm -rf dist && tsc",
@@ -53,10 +57,6 @@
   "overrides": {
     "vite": "npm:@voidzero-dev/vite-plus-core@latest",
     "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
-  },
-  "publishConfig": {
-    "registry": "https://registry.npmjs.org",
-    "access": "public"
   },
   "engines": {
     "node": ">=20"

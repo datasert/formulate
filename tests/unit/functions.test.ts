@@ -1236,3 +1236,50 @@ describe("case – string matching", () => {
     ).toMatchObject({ value: "medium" });
   });
 });
+
+// ─── Null-safety for string functions ────────────────────────────────────────
+
+describe("contains – null safety", () => {
+  it("returns false when field is null", () => {
+    expect(evaluate('CONTAINS(Subject, "Greenstar")', { Subject: null }).result).toMatchObject({
+      value: false,
+    });
+  });
+  it("returns true when field contains the substring (case-insensitive)", () => {
+    expect(evaluate('CONTAINS(Subject, "green")', { Subject: "Greenstar" }).result).toMatchObject({
+      value: true,
+    });
+  });
+  it("returns false when field does not contain the substring", () => {
+    expect(evaluate('CONTAINS(Subject, "blue")', { Subject: "Greenstar" }).result).toMatchObject({
+      value: false,
+    });
+  });
+});
+
+describe("left / right / mid – null safety", () => {
+  it("LEFT returns empty string for null field", () => {
+    expect(evaluate("LEFT(Field__c, 3)", { Field__c: null }).result).toMatchObject({ value: "" });
+  });
+  it("RIGHT returns empty string for null field", () => {
+    expect(evaluate("RIGHT(Field__c, 3)", { Field__c: null }).result).toMatchObject({ value: "" });
+  });
+  it("MID returns empty string for null field", () => {
+    expect(evaluate("MID(Field__c, 1, 3)", { Field__c: null }).result).toMatchObject({ value: "" });
+  });
+});
+
+describe("len / lower / upper / trim – null safety", () => {
+  it("LEN returns 0 for null field", () => {
+    expect(evaluate("LEN(Field__c)", { Field__c: null }).result).toMatchObject({ value: 0 });
+  });
+  it("LOWER returns empty string for null field", () => {
+    expect(evaluate("LOWER(Field__c)", { Field__c: null }).result).toMatchObject({ value: "" });
+  });
+  it("UPPER returns empty string for null field", () => {
+    expect(evaluate("UPPER(Field__c)", { Field__c: null }).result).toMatchObject({ value: "" });
+  });
+  it("TRIM returns empty string for null field", () => {
+    expect(evaluate("TRIM(Field__c)", { Field__c: null }).result).toMatchObject({ value: "" });
+  });
+});

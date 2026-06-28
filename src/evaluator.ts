@@ -6,6 +6,7 @@ import type {
   EvalStep,
   EvaluateOptions,
   EvaluateResult,
+  FieldSchema,
   FieldSubstitutions,
   IdentifierNode,
   LiteralNode,
@@ -291,6 +292,28 @@ function extractFunctionNames(node: AstNode, acc: Set<string>): void {
 
 // ─── Public evaluator API ────────────────────────────────────────────────────
 
+function addToNormalized(
+  normalized: NormalizedSubs,
+  key: string,
+  value: unknown,
+  schema: FieldSchema | undefined,
+): void {
+  const lowerKey = key.toLowerCase();
+  const schemaEntry = schema?.[key] ?? schema?.[lowerKey];
+  if (schemaEntry) {
+    normalized[lowerKey] = buildLiteralFromSchema(value, schemaEntry);
+  } else if (typeof value === "object" && value !== null && "type" in value) {
+    normalized[lowerKey] = value as LiteralNode;
+  } else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      addToNormalized(normalized, `${key}.${k}`, v, schema);
+    }
+  } else {
+    // @ts-expect-error
+    normalized[lowerKey] = buildLiteralFromJs(value as string | number | boolean | null);
+  }
+}
+
 /**
  * Evaluate an already-parsed AST against a set of field substitutions.
  */
@@ -301,16 +324,7 @@ export function evaluateAst(
 ): EvaluateResult {
   const normalized: NormalizedSubs = {};
   for (const [k, v] of Object.entries(substitutions)) {
-    const key = k.toLowerCase();
-    const schemaEntry = options.schema?.[k] ?? options.schema?.[key];
-    if (schemaEntry) {
-      normalized[key] = buildLiteralFromSchema(v, schemaEntry);
-    } else if (typeof v === "object" && v !== null && "type" in v) {
-      normalized[key] = v as LiteralNode;
-    } else {
-      // @ts-expect-error
-      normalized[key] = buildLiteralFromJs(v as string | number | boolean | null);
-    }
+    addToNormalized(normalized, k, v, options.schema);
   }
 
   let result: LiteralNode | ErrorNode;

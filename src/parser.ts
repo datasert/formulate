@@ -294,16 +294,39 @@ class SalesforceFormulaParser extends EmbeddedActionsParser {
   });
 
   // callExpr = Identifier '(' argList? ')'
+  // Block comments are allowed between any argument and the following comma or closing paren.
   callExpr = this.RULE("callExpr", (): AstNode => {
     const name = this.CONSUME(Identifier).image.toLowerCase();
     this.CONSUME(LParen);
     const args: AstNode[] = [];
-    this.OPTION(() => {
-      args.push(this.SUBRULE(this.formula));
-      this.MANY(() => {
-        this.CONSUME(Comma);
-        args.push(this.SUBRULE2(this.formula));
-      });
+    this.OPTION({
+      // Only parse arg list when the next non-comment token is not ')'
+      GATE: () => {
+        let k = 1;
+        while (this.LA(k).tokenType === BlockComment) k++;
+        return this.LA(k).tokenType !== RParen;
+      },
+      DEF: () => {
+        args.push(this.SUBRULE(this.formula));
+        this.MANY({
+          // Continue when a comma follows (possibly after inter-arg comments)
+          GATE: () => {
+            let k = 1;
+            while (this.LA(k).tokenType === BlockComment) k++;
+            return this.LA(k).tokenType === Comma;
+          },
+          DEF: () => {
+            this.OPTION2(() => {
+              this.CONSUME(BlockComment);
+            }); // comment before comma
+            this.CONSUME(Comma);
+            args.push(this.SUBRULE2(this.formula));
+          },
+        });
+        this.OPTION3(() => {
+          this.CONSUME2(BlockComment);
+        }); // trailing comment before ')'
+      },
     });
     this.CONSUME(RParen);
     return callNode(name, args);

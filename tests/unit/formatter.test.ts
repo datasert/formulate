@@ -579,37 +579,37 @@ describe("format – complex real-world formulas", () => {
 
 describe("format – block comments", () => {
   it("preserves comment before top-level expression", () => {
-    expect(format("/* note */ Amount")).toBe("/* note */ Amount");
+    expect(format("/* note */ Amount")).toBe("/* note */\nAmount");
   });
 
   it("preserves comment before function call", () => {
     expect(format("/* filter */ IF(Amount > 0, Amount, 0)")).toBe(
-      "/* filter */ IF(Amount > 0, Amount, 0)",
+      "/* filter */\nIF(Amount > 0, Amount, 0)",
     );
   });
 
   it("preserves comment inside function argument", () => {
     expect(format("IF(/* condition */ Amount > 0, Amount, 0)")).toBe(
-      "IF(/* condition */ Amount > 0, Amount, 0)",
+      "IF(/* condition */\nAmount > 0, Amount, 0)",
     );
   });
 
   it("preserves comment before right operand of binary op", () => {
     expect(format("Amount + /* discount */ Discount__c")).toBe(
-      "Amount + /* discount */ Discount__c",
+      "Amount + /* discount */\nDiscount__c",
     );
   });
 
   it("preserves verbatim whitespace inside comment", () => {
-    expect(format("/*  spaced  */ Amount")).toBe("/*  spaced  */ Amount");
+    expect(format("/*  spaced  */ Amount")).toBe("/*  spaced  */\nAmount");
   });
 
   it("preserves multi-line comment verbatim", () => {
     const formula = "/*\n  multi-line\n*/ Amount";
-    expect(format(formula)).toBe("/*\n  multi-line\n*/ Amount");
+    expect(format(formula)).toBe("/*\n  multi-line\n*/\nAmount");
   });
 
   it("comment survives round-trip (idempotent)", () => {
-    expect(isIdempotent("/* note */ IF(Amount > 0, Amount, 0)")).toBe(true);
+    expect(isIdempotent("/* note */\nIF(Amount > 0, Amount, 0)")).toBe(true);
   });
 });

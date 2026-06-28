@@ -313,15 +313,19 @@ export function begins(textLiteral: LiteralNode, compareText: LiteralNode): Lite
 }
 
 export function contains(textLiteral: LiteralNode, compareText: LiteralNode): LiteralNode {
-  return buildLiteralFromJs((textLiteral.value as string).includes(compareText.value as string));
+  const s = textLiteral.dataType === "null" ? "" : (textLiteral.value as string);
+  const q = compareText.dataType === "null" ? "" : (compareText.value as string);
+  return buildLiteralFromJs(s.toLowerCase().includes(q.toLowerCase()));
 }
 
 export function left(textLiteral: LiteralNode, numChars: LiteralNode): LiteralNode {
-  return buildLiteralFromJs((textLiteral.value as string).substring(0, numChars.value as number));
+  const s = textLiteral.dataType === "null" ? "" : (textLiteral.value as string);
+  return buildLiteralFromJs(s.substring(0, numChars.value as number));
 }
 
 export function right(textLiteral: LiteralNode, numChars: LiteralNode): LiteralNode {
-  return buildLiteralFromJs((textLiteral.value as string).slice(-(numChars.value as number)));
+  const s = textLiteral.dataType === "null" ? "" : (textLiteral.value as string);
+  return buildLiteralFromJs(s.slice(-(numChars.value as number)));
 }
 
 export function mid(
@@ -329,29 +333,33 @@ export function mid(
   startNum: LiteralNode,
   numChars: LiteralNode,
 ): LiteralNode {
-  return buildLiteralFromJs(
-    (textLiteral.value as string).substr((startNum.value as number) - 1, numChars.value as number),
-  );
+  const s = textLiteral.dataType === "null" ? "" : (textLiteral.value as string);
+  return buildLiteralFromJs(s.substr((startNum.value as number) - 1, numChars.value as number));
 }
 
 export function len(textLiteral: LiteralNode): LiteralNode {
-  return buildLiteralFromJs((textLiteral.value as string).length);
+  const s = textLiteral.dataType === "null" ? "" : (textLiteral.value as string);
+  return buildLiteralFromJs(s.length);
 }
 
 export function lower(textLiteral: LiteralNode, _locale?: LiteralNode): LiteralNode {
-  return buildLiteralFromJs((textLiteral.value as string).toLowerCase());
+  const s = textLiteral.dataType === "null" ? "" : (textLiteral.value as string);
+  return buildLiteralFromJs(s.toLowerCase());
 }
 
 export function upper(textLiteral: LiteralNode, _locale?: LiteralNode): LiteralNode {
-  return buildLiteralFromJs((textLiteral.value as string).toUpperCase());
+  const s = textLiteral.dataType === "null" ? "" : (textLiteral.value as string);
+  return buildLiteralFromJs(s.toUpperCase());
 }
 
 export function trim(textLiteral: LiteralNode): LiteralNode {
-  return buildLiteralFromJs((textLiteral.value as string).trim());
+  const s = textLiteral.dataType === "null" ? "" : (textLiteral.value as string);
+  return buildLiteralFromJs(s.trim());
 }
 
 export function ascii(textLiteral: LiteralNode): LiteralNode {
-  return buildLiteralFromJs((textLiteral.value as string).codePointAt(0) ?? 0);
+  const s = textLiteral.dataType === "null" ? "" : (textLiteral.value as string);
+  return buildLiteralFromJs(s.codePointAt(0) ?? 0);
 }
 
 export function initcap(textLiteral: LiteralNode): LiteralNode {

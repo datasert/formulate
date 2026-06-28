@@ -108,8 +108,8 @@ describe("parse", () => {
     expect(getAst("a <> b").id).toBe("unequal");
   });
 
-  it("parses & as string concatenation (add)", () => {
-    expect(getAst('"Hello" & " " & "World"').id).toBe("add");
+  it("parses & as string concatenation (concat)", () => {
+    expect(getAst('"Hello" & " " & "World"').id).toBe("concat");
   });
 
   it("handles case-insensitive keywords", () => {
@@ -402,6 +402,37 @@ describe("parses real-world Salesforce formulas", () => {
 
   it("block comment with whitespace and newlines", () => {
     parsesOk("/*\n  multi-line\n  comment\n*/ Amount");
+  });
+
+  it("block comment between argument and comma (comma-first style)", () => {
+    parsesOk("IF(Amount > 0\n  /* then branch */\n  ,Amount\n  ,0)");
+  });
+
+  it("block comment after last argument before closing paren", () => {
+    parsesOk("IF(Amount > 0, Amount /* trailing comment */)");
+  });
+
+  it("multiple block comments between arguments", () => {
+    parsesOk("AND(/* c1 */ A > 0 /* c2 */, /* c3 */ B > 0)");
+  });
+
+  it("real-world formula with comments on every argument (ordinal suffix)", () => {
+    parsesOk(`IF(
+      /* IF THE BUYER'S LOAN HAS Current_Principal_Due_Date__c POPULATED */
+      NOT(ISBLANK(Buyer_Loan__r.Current_Principal_Due_Date__c))
+
+      /* THEN EXTRAPOLATE THE CALENDAR DAY FROM THE DATE */
+      ,TEXT(DAY(Buyer_Loan__r.Current_Principal_Due_Date__c)) & "" &
+
+      /* THEN APPEND THE ORDINAL FOR THE GIVEN NUMBER */
+      IF(AND(DAY(Buyer_Loan__r.Current_Principal_Due_Date__c) >= 11, DAY(Buyer_Loan__r.Current_Principal_Due_Date__c) <= 13), "th",
+      IF(MOD(DAY(Buyer_Loan__r.Current_Principal_Due_Date__c), 10) = 1, "st",
+      IF(MOD(DAY(Buyer_Loan__r.Current_Principal_Due_Date__c), 10) = 2, "nd",
+      IF(MOD(DAY(Buyer_Loan__r.Current_Principal_Due_Date__c), 10) = 3, "rd", "th"))))
+
+      /* ELSE DISPLAY PLACEHOLDER TEXT */
+      ,"[Date TBD]"
+    )`);
   });
 
   // ── Global variables and special syntax ───────────────────────────────────
