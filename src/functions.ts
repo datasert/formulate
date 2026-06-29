@@ -23,6 +23,7 @@ const STATIC_SESSION_ID =
 
 export function equal(v1: LiteralNode, v2: LiteralNode): LiteralNode {
   if (v1.dataType === "date" || v1.dataType === "datetime") {
+    if (v2.dataType === "null") return buildLiteralFromJs(false);
     return buildLiteralFromJs((v1.value as Date).getTime() === (v2.value as Date).getTime());
   }
   if (v1.dataType === "text" && v2.dataType === "text") {
@@ -72,11 +73,18 @@ export function add(v1: LiteralNode, v2: LiteralNode): LiteralNode {
         new Decimal(v1.value as number).plus(v2.value as number).toNumber(),
       );
     default:
+      // Salesforce allows + for string concatenation when either operand is text.
+      if (v1.dataType === "text" || v2.dataType === "text") {
+        const s1 = v1.dataType === "null" ? "" : String(v1.value);
+        const s2 = v2.dataType === "null" ? "" : String(v2.value);
+        return buildLiteralFromJs(s1 + s2);
+      }
       ArgumentError.wrongType("add", "number", v2.dataType);
   }
 }
 
 export function subtract(v1: LiteralNode, v2: LiteralNode): LiteralNode {
+  if (v1.dataType === "null" || v2.dataType === "null") return buildLiteralFromJs(null);
   switch (`${v1.dataType} ${v2.dataType}`) {
     case "date number":
       return buildDateLiteral(addDays(v1.value as Date, -(v2.value as number)));
@@ -86,6 +94,8 @@ export function subtract(v1: LiteralNode, v2: LiteralNode): LiteralNode {
       return buildDatetimeLiteral(addDays(v1.value as Date, -(v2.value as number)));
     case "date date":
     case "datetime datetime":
+    case "datetime date":
+    case "date datetime":
       return buildLiteralFromJs(daysDifference(v1.value as Date, v2.value as Date));
     case "time time":
       return buildLiteralFromJs((v1.value as Date).getTime() - (v2.value as Date).getTime());
@@ -99,6 +109,7 @@ export function subtract(v1: LiteralNode, v2: LiteralNode): LiteralNode {
 }
 
 export function multiply(v1: LiteralNode, v2: LiteralNode): LiteralNode {
+  if (v1.dataType === "null" || v2.dataType === "null") return buildLiteralFromJs(null);
   if (v1.dataType !== "number" || v2.dataType !== "number") {
     ArgumentError.wrongType("multiply", "number", v2.dataType);
   }
@@ -106,6 +117,7 @@ export function multiply(v1: LiteralNode, v2: LiteralNode): LiteralNode {
 }
 
 export function divide(v1: LiteralNode, v2: LiteralNode): LiteralNode {
+  if (v1.dataType === "null" || v2.dataType === "null") return buildLiteralFromJs(null);
   if (v1.dataType !== "number" || v2.dataType !== "number") {
     ArgumentError.wrongType("divide", "number", v2.dataType);
   }
@@ -118,6 +130,7 @@ export function divide(v1: LiteralNode, v2: LiteralNode): LiteralNode {
 }
 
 export function exponentiate(v1: LiteralNode, v2: LiteralNode): LiteralNode {
+  if (v1.dataType === "null" || v2.dataType === "null") return buildLiteralFromJs(null);
   if (v1.dataType !== "number" || v2.dataType !== "number") {
     ArgumentError.wrongType("exponentiate", "number", v2.dataType);
   }
@@ -190,6 +203,7 @@ export function nullvalue(expression: LiteralNode, substitute: LiteralNode): Lit
 }
 
 export function ispickval(picklistField: LiteralNode, textLiteral: LiteralNode): LiteralNode {
+  if (picklistField.dataType === "null") return buildLiteralFromJs(false);
   return buildLiteralFromJs(
     (picklistField.value as string).toLowerCase() === (textLiteral.value as string).toLowerCase(),
   );
@@ -308,6 +322,7 @@ export function picklistcount(_multiSelectPicklist: LiteralNode): LiteralNode {
 }
 
 export function begins(textLiteral: LiteralNode, compareText: LiteralNode): LiteralNode {
+  if (textLiteral.dataType === "null") return buildLiteralFromJs(false);
   return buildLiteralFromJs((textLiteral.value as string).startsWith(compareText.value as string));
 }
 
@@ -362,12 +377,14 @@ export function ascii(textLiteral: LiteralNode): LiteralNode {
 }
 
 export function initcap(textLiteral: LiteralNode): LiteralNode {
+  if (textLiteral.dataType === "null") return buildLiteralFromJs("");
   return buildLiteralFromJs(
     (textLiteral.value as string).toLowerCase().replace(/(?:^|\s)\S/g, (c) => c.toUpperCase()),
   );
 }
 
 export function reverse(textLiteral: LiteralNode): LiteralNode {
+  if (textLiteral.dataType === "null") return buildLiteralFromJs("");
   const segments = new Intl.Segmenter().segment(textLiteral.value as string);
   return buildLiteralFromJs(
     [...segments]
@@ -382,6 +399,7 @@ export function substitute(
   oldText: LiteralNode,
   newText: LiteralNode,
 ): LiteralNode {
+  if (textLiteral.dataType === "null") return buildLiteralFromJs("");
   return buildLiteralFromJs(
     (textLiteral.value as string).replace(
       new RegExp(escapeRegExp(oldText.value as string), "g"),
@@ -401,6 +419,7 @@ export function find(
   textLiteral: LiteralNode,
   startNum: LiteralNode = buildLiteralFromJs(1),
 ): LiteralNode {
+  if (textLiteral.dataType === "null") return buildLiteralFromJs(0);
   if ((startNum.value as number) <= 0 || (searchText.value as string) === "") {
     return buildLiteralFromJs(0);
   }
@@ -414,10 +433,11 @@ export function lpad(
   padString: LiteralNode | null = null,
 ): LiteralNode {
   if (!padString) return textLiteral;
+  const s = textLiteral.dataType === "null" ? "" : (textLiteral.value as string);
   const padLen = paddedLength.value as number;
-  if (padLen < (textLiteral.value as string).length) return left(textLiteral, paddedLength);
+  if (padLen < s.length) return left(textLiteral, paddedLength);
   const maxPad = (padString.value as string).repeat(padLen);
-  return buildLiteralFromJs((maxPad + (textLiteral.value as string)).slice(-padLen));
+  return buildLiteralFromJs((maxPad + s).slice(-padLen));
 }
 
 export function rpad(
@@ -426,10 +446,11 @@ export function rpad(
   padString: LiteralNode | null = null,
 ): LiteralNode {
   if (!padString) return textLiteral;
+  const s = textLiteral.dataType === "null" ? "" : (textLiteral.value as string);
   const padLen = paddedLength.value as number;
-  if (padLen < (textLiteral.value as string).length) return left(textLiteral, paddedLength);
+  if (padLen < s.length) return left(textLiteral, paddedLength);
   const maxPad = (padString.value as string).repeat(padLen);
-  return buildLiteralFromJs(((textLiteral.value as string) + maxPad).substring(0, padLen));
+  return buildLiteralFromJs((s + maxPad).substring(0, padLen));
 }
 
 export function text(value: LiteralNode): LiteralNode {
@@ -446,12 +467,14 @@ export function text(value: LiteralNode): LiteralNode {
 }
 
 export function value(textLiteral: LiteralNode): LiteralNode {
+  if (textLiteral.dataType === "null") return buildLiteralFromJs(null);
   const n = parseFloat(textLiteral.value as string);
   if (isNaN(n)) return buildLiteralFromJs(null);
   return buildLiteralFromJs(n);
 }
 
 export function regex(textLiteral: LiteralNode, regexText: LiteralNode): LiteralNode {
+  if (textLiteral.dataType === "null") return buildLiteralFromJs(false);
   const r = new RegExp(`^${regexText.value as string}$`);
   return buildLiteralFromJs(r.exec(textLiteral.value as string) != null);
 }
@@ -465,6 +488,7 @@ const HTML_ENTITIES: Record<string, string> = {
 };
 
 export function htmlencode(textLiteral: LiteralNode): LiteralNode {
+  if (textLiteral.dataType === "null") return buildLiteralFromJs("");
   return buildLiteralFromJs(
     (textLiteral.value as string).replace(/[&<>"']/g, (ch) => HTML_ENTITIES[ch]),
   );
@@ -486,6 +510,7 @@ const JS_ESCAPE: Record<string, string> = {
 };
 
 export function jsencode(textLiteral: LiteralNode): LiteralNode {
+  if (textLiteral.dataType === "null") return buildLiteralFromJs("");
   return buildLiteralFromJs(
     (textLiteral.value as string).replace(/[\\'"<>&=\n\r\t\b\f]/g, (ch) => JS_ESCAPE[ch] ?? ch),
   );
@@ -496,6 +521,7 @@ export function jsinhtmlencode(textLiteral: LiteralNode): LiteralNode {
 }
 
 export function urlencode(textLiteral: LiteralNode): LiteralNode {
+  if (textLiteral.dataType === "null") return buildLiteralFromJs("");
   return buildLiteralFromJs(encodeURIComponent(textLiteral.value as string));
 }
 
@@ -504,6 +530,7 @@ export function br(): LiteralNode {
 }
 
 export function casesafeid(id: LiteralNode): LiteralNode {
+  if (id.dataType === "null") return buildLiteralFromJs(null);
   const s = id.value as string;
   let suffix = "";
   for (let i = 0; i < 3; i++) {
@@ -546,10 +573,13 @@ export function image(
 }
 
 export function addmonths(date: LiteralNode, num: LiteralNode): LiteralNode {
+  if (date.dataType === "null") return buildLiteralFromJs(null);
   return buildDateLiteral(addMonths(date.value as Date, num.value as number));
 }
 
 export function date(year: LiteralNode, month: LiteralNode, day: LiteralNode): LiteralNode {
+  if (year.dataType === "null" || month.dataType === "null" || day.dataType === "null")
+    return buildLiteralFromJs(null);
   return buildDateLiteral(year.value as number, month.value as number, day.value as number);
 }
 
@@ -584,7 +614,8 @@ export function now(): LiteralNode {
 }
 
 export function today(): LiteralNode {
-  return buildDateLiteral(new Date());
+  const d = new Date();
+  return buildDateLiteral(d.getFullYear(), d.getMonth() + 1, d.getDate());
 }
 
 export function timenow(): LiteralNode {
@@ -592,44 +623,54 @@ export function timenow(): LiteralNode {
 }
 
 export function day(date: LiteralNode): LiteralNode {
+  if (date.dataType === "null") return buildLiteralFromJs(null);
   return buildLiteralFromJs((date.value as Date).getUTCDate());
 }
 
 export function month(date: LiteralNode): LiteralNode {
+  if (date.dataType === "null") return buildLiteralFromJs(null);
   return buildLiteralFromJs((date.value as Date).getUTCMonth() + 1);
 }
 
 export function year(date: LiteralNode): LiteralNode {
+  if (date.dataType === "null") return buildLiteralFromJs(null);
   return buildLiteralFromJs((date.value as Date).getUTCFullYear());
 }
 
 export function hour(expression: LiteralNode): LiteralNode {
+  if (expression.dataType === "null") return buildLiteralFromJs(null);
   return buildLiteralFromJs((expression.value as Date).getUTCHours());
 }
 
 export function minute(expression: LiteralNode): LiteralNode {
+  if (expression.dataType === "null") return buildLiteralFromJs(null);
   return buildLiteralFromJs((expression.value as Date).getUTCMinutes());
 }
 
 export function second(expression: LiteralNode): LiteralNode {
+  if (expression.dataType === "null") return buildLiteralFromJs(null);
   return buildLiteralFromJs((expression.value as Date).getUTCSeconds());
 }
 
 export function millisecond(expression: LiteralNode): LiteralNode {
+  if (expression.dataType === "null") return buildLiteralFromJs(null);
   return buildLiteralFromJs((expression.value as Date).getUTCMilliseconds());
 }
 
 export function weekday(date: LiteralNode): LiteralNode {
+  if (date.dataType === "null") return buildLiteralFromJs(null);
   return buildLiteralFromJs((date.value as Date).getUTCDay() + 1);
 }
 
 export function dayofyear(date: LiteralNode): LiteralNode {
+  if (date.dataType === "null") return buildLiteralFromJs(null);
   const d = date.value as Date;
   const start = Date.UTC(d.getUTCFullYear(), 0, 0);
   return buildLiteralFromJs(Math.floor((d.getTime() - start) / 86400000));
 }
 
 export function isoweek(date: LiteralNode): LiteralNode {
+  if (date.dataType === "null") return buildLiteralFromJs(null);
   // ISO 8601: week containing the first Thursday of the year
   const d = new Date((date.value as Date).getTime());
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -638,12 +679,14 @@ export function isoweek(date: LiteralNode): LiteralNode {
 }
 
 export function isoyear(date: LiteralNode): LiteralNode {
+  if (date.dataType === "null") return buildLiteralFromJs(null);
   const d = new Date((date.value as Date).getTime());
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
   return buildLiteralFromJs(d.getUTCFullYear());
 }
 
 export function unixtimestamp(dateOrTime: LiteralNode): LiteralNode {
+  if (dateOrTime.dataType === "null") return buildLiteralFromJs(null);
   const v = dateOrTime.value as Date;
   if (dateOrTime.dataType === "time") {
     return buildLiteralFromJs(Math.floor(v.getTime() / 1000));
@@ -652,6 +695,7 @@ export function unixtimestamp(dateOrTime: LiteralNode): LiteralNode {
 }
 
 export function fromunixtime(seconds: LiteralNode): LiteralNode {
+  if (seconds.dataType === "null") return buildLiteralFromJs(null);
   return buildDatetimeLiteral(new Date((seconds.value as number) * 1000));
 }
 
@@ -680,6 +724,8 @@ export function distance(
   location2: LiteralNode,
   unit: LiteralNode,
 ): LiteralNode {
+  if (location1.dataType === "null" || location2.dataType === "null")
+    return buildLiteralFromJs(null);
   const u = unit.value as string;
   if (u !== "km" && u !== "mi") {
     throw new ArgumentError(

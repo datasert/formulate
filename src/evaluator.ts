@@ -16,9 +16,12 @@ import { FormulaError } from "./errors.js";
 import { FUNCTIONS } from "./functions.js";
 import { flatFormat } from "./formatter.js";
 import {
+  buildDateLiteral,
+  buildDatetimeLiteral,
   buildErrorLiteral,
   buildLiteralFromJs,
   buildLiteralFromSchema,
+  buildTimeLiteral,
   formatLiteral,
 } from "./utils.js";
 
@@ -27,6 +30,7 @@ type NormalizedSubs = Record<string, LiteralNode>;
 interface EvalCtx {
   subs: NormalizedSubs;
   blanksAsZero: boolean;
+  timezone?: string;
 }
 
 // Functions where a null operand should be treated as 0 when blanksAsZero is enabled.
@@ -43,6 +47,56 @@ function applyBlanksAsZero(args: Array<LiteralNode | ErrorNode>): Array<LiteralN
     );
     return hasTemporalSibling ? arg : buildLiteralFromJs(0);
   });
+}
+
+// ─── Timezone-aware clock functions ──────────────────────────────────────────
+
+function datePartsInTz(tz: string | undefined): { y: number; m: number; d: number } {
+  const now = new Date();
+  if (!tz) return { y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate() };
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const get = (t: string) => parseInt(parts.find((p) => p.type === t)!.value, 10);
+  return { y: get("year"), m: get("month"), d: get("day") };
+}
+
+function todayInTz(tz: string | undefined): LiteralNode {
+  const { y, m, d } = datePartsInTz(tz);
+  return buildDateLiteral(y, m, d);
+}
+
+function nowInTz(tz: string | undefined): LiteralNode {
+  // NOW() is an absolute instant — timezone only affects how it's displayed, not the value.
+  // We return the current UTC timestamp as a datetime literal, matching Salesforce behaviour.
+  void tz;
+  return buildDatetimeLiteral(new Date().getTime());
+}
+
+function timenowInTz(tz: string | undefined): LiteralNode {
+  if (!tz) {
+    const now = new Date();
+    const msFromMidnight =
+      now.getHours() * 3600000 +
+      now.getMinutes() * 60000 +
+      now.getSeconds() * 1000 +
+      now.getMilliseconds();
+    return buildTimeLiteral(msFromMidnight);
+  }
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+  const get = (t: string) => parseInt(parts.find((p) => p.type === t)!.value, 10);
+  const msFromMidnight = get("hour") * 3600000 + get("minute") * 60000 + get("second") * 1000;
+  return buildTimeLiteral(msFromMidnight);
 }
 
 // ─── AST traversal ────────────────────────────────────────────────────────────
@@ -72,6 +126,12 @@ function traverseNode(node: AstNode, ctx: EvalCtx): LiteralNode | ErrorNode {
 
     case "callExpression": {
       const call = node as CallExpressionNode;
+
+      // Clock functions need the timezone from context.
+      if (call.id === "today") return todayInTz(ctx.timezone);
+      if (call.id === "now") return nowInTz(ctx.timezone);
+      if (call.id === "timenow") return timenowInTz(ctx.timezone);
+
       const fn = FUNCTIONS[call.id];
       if (!fn) {
         return buildErrorLiteral(
@@ -185,6 +245,21 @@ function traverseWithSteps(node: AstNode, ctx: EvalCtx): StepResult {
 
   // callExpression
   const call = node as CallExpressionNode;
+
+  // Clock functions need the timezone from context.
+  if (call.id === "today") {
+    const result = todayInTz(ctx.timezone);
+    return { result, step: { text, result, children: [] } };
+  }
+  if (call.id === "now") {
+    const result = nowInTz(ctx.timezone);
+    return { result, step: { text, result, children: [] } };
+  }
+  if (call.id === "timenow") {
+    const result = timenowInTz(ctx.timezone);
+    return { result, step: { text, result, children: [] } };
+  }
+
   const fn = FUNCTIONS[call.id];
 
   if (!fn && call.op === undefined) {
@@ -384,7 +459,11 @@ export function evaluateAst(
     addToNormalized(normalized, k, v, options.schema);
   }
 
-  const ctx: EvalCtx = { subs: normalized, blanksAsZero: options.blanksAsZero ?? true };
+  const ctx: EvalCtx = {
+    subs: normalized,
+    blanksAsZero: options.blanksAsZero ?? true,
+    timezone: options.timezone,
+  };
 
   let result: LiteralNode | ErrorNode;
   let steps: EvalStep | undefined;

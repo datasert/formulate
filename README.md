@@ -228,10 +228,14 @@ interface EvaluateResult {
 
 `options`:
 
-| Option   | Type          | Description                                                      |
-| -------- | ------------- | ---------------------------------------------------------------- |
-| `schema` | `FieldSchema` | Per-field type annotations for automatic coercion of raw values  |
-| `steps`  | `boolean`     | When `true`, include the full evaluation step tree in the result |
+| Option          | Type          | Default    | Description                                                                          |
+| --------------- | ------------- | ---------- | ------------------------------------------------------------------------------------ |
+| `schema`        | `FieldSchema` | —          | Per-field type annotations for automatic coercion of raw values                      |
+| `returnType`    | `SfDataType`  | —          | Coerces the final result to this type (e.g. `"text"`, `"number"`, `"checkbox"`)      |
+| `blanksAsZero`  | `boolean`     | `true`     | Treats null number fields as `0` in arithmetic, matching Salesforce's formula option |
+| `decimalDigits` | `number`      | `2`        | Decimal places for number output; does not affect the raw `result.value`             |
+| `timezone`      | `string`      | local time | IANA timezone for `TODAY()`, `NOW()`, `TIMENOW()` — e.g. `"America/Los_Angeles"`     |
+| `steps`         | `boolean`     | `false`    | When `true`, include the full evaluation step tree in the result                     |
 
 ### `evaluateAst(ast, substitutions?, options?)`
 

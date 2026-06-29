@@ -6,6 +6,16 @@ function val(r: ReturnType<typeof evaluate>) {
   return r.result.value;
 }
 
+// Build a date literal relative to today's UTC date, for use with timezone: "UTC" tests.
+function utcDate(offsetDays: number): ReturnType<typeof buildDateLiteral> {
+  const now = new Date();
+  return buildDateLiteral(
+    now.getUTCFullYear(),
+    now.getUTCMonth() + 1,
+    now.getUTCDate() + offsetDays,
+  );
+}
+
 // ── Account Management ────────────────────────────────────────────────────────
 
 describe("Account Management Formulas", () => {
@@ -17,9 +27,9 @@ describe("Account Management Formulas", () => {
   });
 
   it("days since last activity", () => {
-    const tenDaysAgo = buildDateLiteral(new Date(Date.now() - 10 * 24 * 60 * 60 * 1000));
+    const tenDaysAgo = utcDate(-10);
     const formula = "TODAY() - LastActivityDate";
-    const result = evaluate(formula, { LastActivityDate: tenDaysAgo });
+    const result = evaluate(formula, { LastActivityDate: tenDaysAgo }, { timezone: "UTC" });
     expect(val(result)).toBeCloseTo(10, 0);
   });
 
@@ -117,9 +127,9 @@ describe("Opportunity Management Formulas", () => {
   });
 
   it("days to close from today", () => {
-    const futureDate = buildDateLiteral(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
+    const futureDate = utcDate(30);
     const formula = "CloseDate - TODAY()";
-    const result = evaluate(formula, { CloseDate: futureDate });
+    const result = evaluate(formula, { CloseDate: futureDate }, { timezone: "UTC" });
     expect(val(result) as number).toBeCloseTo(30, 0);
   });
 
@@ -142,9 +152,9 @@ describe("Opportunity Management Formulas", () => {
   });
 
   it("opportunity age in days", () => {
-    const createdDate = buildDateLiteral(new Date(Date.now() - 15 * 24 * 60 * 60 * 1000));
+    const createdDate = utcDate(-15);
     const formula = "TODAY() - CreatedDate";
-    const result = evaluate(formula, { CreatedDate: createdDate });
+    const result = evaluate(formula, { CreatedDate: createdDate }, { timezone: "UTC" });
     expect(val(result) as number).toBeCloseTo(15, 0);
   });
 });
@@ -162,11 +172,11 @@ describe("Case Management Formulas", () => {
   });
 
   it("SLA breach indicator: case open more than 5 days", () => {
-    const old = buildDateLiteral(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
-    const recent = buildDateLiteral(new Date(Date.now() - 2 * 24 * 60 * 60 * 1000));
+    const old = utcDate(-6);
+    const recent = utcDate(-2);
     const formula = 'IF(TODAY() - CreatedDate > 5, "Breached", "On Track")';
-    expect(val(evaluate(formula, { CreatedDate: old }))).toBe("Breached");
-    expect(val(evaluate(formula, { CreatedDate: recent }))).toBe("On Track");
+    expect(val(evaluate(formula, { CreatedDate: old }, { timezone: "UTC" }))).toBe("Breached");
+    expect(val(evaluate(formula, { CreatedDate: recent }, { timezone: "UTC" }))).toBe("On Track");
   });
 
   it("case data completeness: score fields that have values", () => {
@@ -206,9 +216,9 @@ describe("Lead Management Formulas", () => {
   });
 
   it("days since lead created", () => {
-    const created = buildDateLiteral(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+    const created = utcDate(-7);
     const formula = "TODAY() - DATE(YEAR(CreatedDate), MONTH(CreatedDate), DAY(CreatedDate))";
-    const result = evaluate(formula, { CreatedDate: created });
+    const result = evaluate(formula, { CreatedDate: created }, { timezone: "UTC" });
     expect(val(result) as number).toBeCloseTo(7, 0);
   });
 });
@@ -250,9 +260,9 @@ describe("Date and Time Formulas", () => {
 
   it("due date 30 days from today", () => {
     const formula = "TODAY() + 30";
-    const result = evaluate(formula);
+    const result = evaluate(formula, {}, { timezone: "UTC" });
     const due = result.result.value as Date;
-    const expected = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const expected = utcDate(30).value as Date;
     expect(due.getUTCFullYear()).toBe(expected.getUTCFullYear());
     expect(due.getUTCMonth()).toBe(expected.getUTCMonth());
     expect(due.getUTCDate()).toBe(expected.getUTCDate());

@@ -168,6 +168,11 @@ export interface EvaluateOptions {
    */
   decimalDigits?: number;
   /**
+   * IANA timezone name (e.g. "America/Los_Angeles", "UTC") used to resolve TODAY(), NOW(), and
+   * TIMENOW(). When omitted, the process's local timezone is used.
+   */
+  timezone?: string;
+  /**
    * When true, the returned EvaluateResult includes a `steps` tree that traces
    * every AST node to the value it produced. Useful for debugging formulas.
    */
