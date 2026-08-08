@@ -171,11 +171,10 @@ export const FUNCTION_HELP: Record<string, FunctionHelp> = {
   ISCHANGED: {
     syntax: "ISCHANGED(field)",
     description:
-      "Returns TRUE if the value of the specified field has changed since the last save. Only valid in workflow rules and certain formula contexts.",
+      "Compares the current value of the specified field with its previous value and returns TRUE when they differ. Returns FALSE for newly created records. Only valid in assignment rules, validation rules, field updates, workflow rules, and certain automation formula contexts.",
     params: [{ name: "field", description: "The field reference to check for changes." }],
     returns: "Boolean (TRUE or FALSE).",
     example: "ISCHANGED(StageName)",
-    notImplemented: true,
   },
 
   PRIORVALUE: {

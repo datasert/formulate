@@ -767,8 +767,13 @@ export function isnew(): LiteralNode {
   return NotImplementedError.throw("isnew");
 }
 
-export function ischanged(_field: LiteralNode): LiteralNode {
-  return NotImplementedError.throw("ischanged");
+function isBlank(value: LiteralNode): boolean {
+  return value.dataType === "null" || (value.dataType === "text" && value.value === "");
+}
+
+export function ischanged(field: LiteralNode, oldValue?: LiteralNode): LiteralNode {
+  if (!oldValue || (isBlank(field) && isBlank(oldValue))) return buildLiteralFromJs(false);
+  return buildLiteralFromJs(!equal(field, oldValue).value);
 }
 
 export function urlfor(

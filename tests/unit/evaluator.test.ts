@@ -81,6 +81,28 @@ describe("evaluate – logical", () => {
   });
 });
 
+describe("evaluate – ISCHANGED", () => {
+  it("returns true when the current value differs from oldValues", () => {
+    const r = evaluate("ISCHANGED(StageName)", {StageName: "Closed Won"}, {oldValues: {StageName: "Negotiation"}});
+    expect(r.result).toMatchObject({dataType: "checkbox", value: true});
+  });
+
+  it("returns false when the current value matches oldValues", () => {
+    const r = evaluate("ISCHANGED(StageName)", {StageName: "Negotiation"}, {oldValues: {StageName: "Negotiation"}});
+    expect(r.result).toMatchObject({dataType: "checkbox", value: false});
+  });
+
+  it("returns false when oldValues are omitted for a new record", () => {
+    const r = evaluate("ISCHANGED(StageName)", {StageName: "Closed Won"});
+    expect(r.result).toMatchObject({dataType: "checkbox", value: false});
+  });
+
+  it("supports blank and zero transitions", () => {
+    expect(evaluate("ISCHANGED(Name)", {Name: "Acme"}, {oldValues: {Name: null}}).result).toMatchObject({value: true});
+    expect(evaluate("ISCHANGED(Amount)", {Amount: null}, {oldValues: {Amount: 0}}).result).toMatchObject({value: true});
+  });
+});
+
 describe("evaluate – IF / CASE", () => {
   it("IF true branch", () => {
     const r = evaluate('IF(5 > 3, "yes", "no")');

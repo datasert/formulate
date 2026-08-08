@@ -29,6 +29,8 @@ type NormalizedSubs = Record<string, LiteralNode>;
 
 interface EvalCtx {
   subs: NormalizedSubs;
+  oldSubs: NormalizedSubs;
+  hasOldValues: boolean;
   blanksAsZero: boolean;
   timezone?: string;
 }
@@ -37,6 +39,23 @@ interface EvalCtx {
 const NUMERIC_OPS = new Set(["add", "subtract", "multiply", "divide", "exponentiate"]);
 
 const TEMPORAL_TYPES = new Set(["date", "datetime", "time"]);
+
+function evaluateIsChanged(call: CallExpressionNode, ctx: EvalCtx): LiteralNode | ErrorNode {
+  const argument = call.arguments[0];
+  if (!argument || argument.type !== "identifier" || call.arguments.length !== 1) {
+    return buildErrorLiteral("ArgumentError", "ISCHANGED() requires exactly one field reference");
+  }
+  if (!ctx.hasOldValues) return buildLiteralFromJs(false);
+
+  const fieldName = (argument as IdentifierNode).name;
+  const key = fieldName.toLowerCase();
+  const current = ctx.subs[key];
+  if (current === undefined) {
+    return buildErrorLiteral("ReferenceError", `Unknown field '${fieldName}'`, {field: fieldName});
+  }
+  const oldValue = ctx.oldSubs[key] ?? buildLiteralFromJs(null);
+  return FUNCTIONS.ischanged(current, oldValue);
+}
 
 function applyBlanksAsZero(args: Array<LiteralNode | ErrorNode>): Array<LiteralNode | ErrorNode> {
   return args.map((arg, i) => {
@@ -142,6 +161,8 @@ function traverseNode(node: AstNode, ctx: EvalCtx): LiteralNode | ErrorNode {
           },
         );
       }
+
+      if (call.id === "ischanged") return evaluateIsChanged(call, ctx);
 
       // IF, AND, OR need short-circuit evaluation — only evaluate branches that are reached.
       if (call.id === "if") {
@@ -269,6 +290,12 @@ function traverseWithSteps(node: AstNode, ctx: EvalCtx): StepResult {
       { function: call.id },
     );
     return { result, step: { text, result, children: [] } };
+  }
+
+  if (call.id === "ischanged") {
+    const result = evaluateIsChanged(call, ctx);
+    const children = call.arguments.map((a) => traverseWithSteps(a, ctx).step);
+    return {result, step: {text, result, children}};
   }
 
   // IF — short-circuit: only evaluate the taken branch
@@ -458,9 +485,15 @@ export function evaluateAst(
   for (const [k, v] of Object.entries(substitutions)) {
     addToNormalized(normalized, k, v, options.schema);
   }
+  const oldNormalized: NormalizedSubs = {};
+  for (const [k, v] of Object.entries(options.oldValues ?? {})) {
+    addToNormalized(oldNormalized, k, v, options.schema);
+  }
 
   const ctx: EvalCtx = {
     subs: normalized,
+    oldSubs: oldNormalized,
+    hasOldValues: options.oldValues !== undefined,
     blanksAsZero: options.blanksAsZero ?? true,
     timezone: options.timezone,
   };

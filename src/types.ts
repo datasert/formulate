@@ -142,6 +142,11 @@ export interface EvalStep {
 /** Options for evaluate() / evaluateAst(). */
 export interface EvaluateOptions {
   /**
+   * Previous field values used by change-aware functions such as ISCHANGED().
+   * Omit this for a newly created record; ISCHANGED() then returns FALSE.
+   */
+  oldValues?: FieldSubstitutions;
+  /**
    * Optional field type annotations. When provided, raw string values for
    * date/datetime/time/geolocation fields are coerced to the correct LiteralNode
    * automatically — no need to call buildDateLiteral() etc. manually.

@@ -962,8 +962,22 @@ describe("isnew", () => {
 });
 
 describe("ischanged", () => {
-  it("returns not-implemented error (requires record context)", () => {
-    expect(evaluate("ISCHANGED(Amount)", { Amount: 100 }).result?.type).toBe("error");
+  it("returns false when old values are omitted for a new record", () => {
+    expect((evaluate("ISCHANGED(Amount)", { Amount: 100 }).result as any).value).toBe(false);
+  });
+
+  it("compares current and old values", () => {
+    expect((evaluate("ISCHANGED(Amount)", {Amount: 100}, {oldValues: {Amount: 50}}).result as any).value).toBe(true);
+    expect((evaluate("ISCHANGED(Amount)", {Amount: 100}, {oldValues: {Amount: 100}}).result as any).value).toBe(false);
+  });
+
+  it("handles blank and zero transitions", () => {
+    expect((evaluate("ISCHANGED(Name)", {Name: "Acme"}, {oldValues: {Name: null}}).result as any).value).toBe(true);
+    expect((evaluate("ISCHANGED(Amount)", {Amount: null}, {oldValues: {Amount: 0}}).result as any).value).toBe(true);
+  });
+
+  it("requires a field reference", () => {
+    expect(evaluate('ISCHANGED("Amount")', {}, {oldValues: {}}).result?.type).toBe("error");
   });
 });
 
